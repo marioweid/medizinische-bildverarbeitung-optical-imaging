@@ -24,6 +24,46 @@ def read_video(input_path: str) -> List[np.ndarray]:
     return imgs
 
 
+def find_contour(img, lower, upper):
+    # create NumPy arrays from the boundaries
+    lower = np.array(lower, dtype="uint8")
+    upper = np.array(upper, dtype="uint8")
+
+    # # find the colors within the specified boundaries and apply
+    # # the mask
+    mask = cv2.inRange(img, lower, upper)
+    output = cv2.bitwise_and(img, img, mask=mask)
+
+    ret, thresh = cv2.threshold(mask, 40, 255, 0)
+    if (int(cv2.__version__[0]) > 3):
+        contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    else:
+        im2, contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+    if len(contours) != 0:
+        # draw in blue the contours that were founded
+        cv2.drawContours(output, contours, -1, 255, 3)
+
+        # find the biggest countour (c) by the area
+        c = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(c)
+
+        # draw the biggest contour (c) in green
+        cv2.rectangle(output, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        return x + 0.5 * w, y + 0.5 * h
+    return 0, 0
+
+
+def calculate_transform_matrix(source, destination):
+    src_middle = find_contour(source, [190, 160, 70], [210, 190, 130])  # fluo
+    dst_middle = find_contour(destination, [20, 50, 80], [70, 140, 230])  # video
+    if src_middle == (0, 0) or dst_middle == (0, 0):
+        return np.float32([[1, 0, 0], [0, 1, 0]])
+    x = dst_middle[0] - src_middle[0]
+    y = dst_middle[1] - src_middle[1]
+    return np.float32([[1, 0, x], [0, 1, y]])
+
+
 if __name__ == '__main__':
     file_dir: str = os.path.dirname(os.path.realpath(__file__))
     video_dir: str = os.path.join(file_dir, 'Movie human colon xenograft 1.mp4')
@@ -44,43 +84,23 @@ if __name__ == '__main__':
 
     video_images = read_video(video_dir)
     video_images = [img[27:560, 86:718] for img in video_images]
-    # video shape=(576,768) len=4896
-    # fluo  shape=(256,256) len=1405
 
     fluo_extended = []
     for i in range(len(video_images)):
         idx = int(i / 3.5)
         fluo_extended.append(fluo_images[idx])
 
+    for i in range(len(fluo_extended)):
+        M = calculate_transform_matrix(fluo_extended[i], video_images[i])
+        fluo_extended[i] = cv2.warpAffine(fluo_extended[i], M, (632, 533))
+
     mixxed = []
     for i in range(len(fluo_extended)):
         img = cv2.addWeighted(video_images[i], 1.0, fluo_extended[i], 0.6, 0)
         mixxed.append(img)
 
-    writer = cv2.VideoWriter(os.path.join(file_dir, 'mixxed_video_and_fluo.mp4'), -1, 20.0, (632, 533))
+    writer = cv2.VideoWriter(os.path.join(file_dir, 'mixxed_video_and_fluo_warped.mp4'), -1, 20.0, (632, 533))
 
     for i in mixxed:
         writer.write(i)
     cv2.waitKey(0)
-
-    # left = 86
-    # top = 27  # x1 = (86,27)
-    # bot = 560  # x2 = (718,560)
-    # right = 718
-    # mixed_cropped = mixed_img[top:bot, left:right]
-    # cv2.imshow('mixxed_image', mixed_img)
-    # cv2.imshow('mixxed_cropped', mixed_cropped)
-
-    # VSCODE BIN
-    # img = fluo_hdus[correspondings[all_timestamps[11]][1]]
-    # # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    # img = cv2.threshold(img, 2000, 2500, cv2.THRESH_BINARY)[1]
-    # cv2.imshow('image', img)
-    # cv2.waitKey(0)
-    #
-    # mixed_img = cv2.addWeighted(color, 0.4, cv2.cvtColor(fluo, cv2.COLOR_BGR2RGB).astype(np.uint8), 0.1, 0)
-    # cv2.imshow('image', mixed_img)
-    # cv2.waitKey(0)
-    #
-    # cv2.imshow('image', fluo_images[0])
-    # cv2.waitKey(0)

@@ -117,6 +117,8 @@ if __name__ == '__main__':
                                     color_hdus[all_timestamps[0]].shape[0]))
 
     fluo_hdus = flip_images(fluo_hdus, 1)
+    cv2.imwrite("flipped_colors.jpg", color_hdus[all_timestamps[0]])
+    print("asdasd")
     fluo_hdus = fluo_warp_perspective(fluo_hdus, fluo_meta)
     fluo_hdus = fluo_denoice_image(fluo_hdus)
 
