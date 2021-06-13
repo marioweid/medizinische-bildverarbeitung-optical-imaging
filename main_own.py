@@ -87,6 +87,13 @@ def fluo_to_color(imgs: Dict[int, np.ndarray]):
     return ret
 
 
+def fluo_denoice_image(imgs: Dict[int, np.ndarray]):
+    ret: Dict[int, np.ndarray] = {}
+    for idx in imgs:
+        ret[idx] = cv2.threshold(imgs[idx], 2000, 2500, cv2.THRESH_BINARY)[1]
+    return ret
+
+
 if __name__ == '__main__':
     file_dir: str = os.path.dirname(os.path.realpath(__file__))
     color_dir: str = os.path.join(file_dir, 'Mice2_cetu2_131213_210250_color.fits')
@@ -101,20 +108,6 @@ if __name__ == '__main__':
     color_data_list.close()
     fluo_data_list.close()
 
-    # color_hdus = resize_fluo_images(color_hdus, (1024, 1392))
-
-    # col = cv2.cvtColor(, cv2.COLOR_BAYER_BG2BGR)
-
-    # TODO PROCESS IMAGES HERE
-    #   scale fluo to color
-    #   img = color_img.astype(np.uint8)
-    #     bgr_img = cv2.cvtColor(img, cv2.COLOR_BAYER_BG2BGR)
-    #   todo exctract registraiton params
-    #   todo register fluo images
-    #     fluo_img_registred = cv2.warpPerspective(fluo_img, warp_matrix, (col_width,col_height))
-    #     col_width = shape.x ...
-    # opencv warp_perspective
-
     all_timestamps, correspondings = get_corresponding(color_hdus, fluo_hdus)
 
     color_hdus = remove_bayer_pattern(color_hdus)
@@ -125,6 +118,7 @@ if __name__ == '__main__':
 
     fluo_hdus = flip_images(fluo_hdus, 1)
     fluo_hdus = fluo_warp_perspective(fluo_hdus, fluo_meta)
+    fluo_hdus = fluo_denoice_image(fluo_hdus)
 
     f, axarr = plt.subplots(1, 2)
 
@@ -153,19 +147,18 @@ if __name__ == '__main__':
         plt.draw()
 
 
-    overlayed = []
-    for t in range(len(all_timestamps)):
-        color = color_hdus[correspondings[all_timestamps[t]][0]]
-        fluo = cv2.cvtColor(fluo_hdus[correspondings[all_timestamps[t]][1]], cv2.COLOR_GRAY2RGB).astype(np.uint8)
-        mixed_img = cv2.addWeighted(color, 0.4, fluo, 0.1, 0)
-        overlayed.append(mixed_img)
-
-    # writer = cv2.VideoWriter(os.path.join(file_dir, 'video.mp4'), cv2.VideoWriter_fourcc(*'XVID'), 20, (1392, 1024),
-    #                          True)
-    writer = cv2.VideoWriter(os.path.join(file_dir, 'video.mp4'), -1, 20.0, (1392, 1024))
-
-    for i in overlayed:
-        writer.write(i)
+    # TO GENERATE VIDEO comment this lines in
+    # overlayed = []
+    # for t in range(len(all_timestamps)):
+    #     color = cv2.cvtColor(color_hdus[correspondings[all_timestamps[t]][0]], cv2.COLOR_BGR2RGB)
+    #     fluo = fluo_hdus[correspondings[all_timestamps[t]][1]]
+    #     mixed_img = cv2.addWeighted(color, 1.0, cv2.cvtColor(fluo, cv2.COLOR_BGR2RGB).astype(np.uint8), 0.3, 0)
+    #     overlayed.append(mixed_img)
+    #
+    # writer = cv2.VideoWriter(os.path.join(file_dir, 'video.mp4'), -1, 20.0, (1392, 1024))
+    #
+    # for i in overlayed:
+    #     writer.write(i)
 
     slider.on_changed(update)
 
